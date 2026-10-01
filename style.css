@@ -46,3 +46,11 @@ h1{text-align:center;font-size:clamp(30px,6vw,54px);margin:8px 0;color:#6b36c8}
 .word:disabled{opacity:.55;cursor:wait;pointer-events:none}
 .word:disabled:hover,.word:disabled:focus{outline:none}
 #listen:disabled{opacity:.55;cursor:wait}
+
+.voiceSettings{max-width:600px;margin:16px auto 24px;padding:16px;border-radius:20px;background:#fff;text-align:left}
+.voiceSettings summary{cursor:pointer;font-weight:bold;font-size:18px}
+.voiceSettings label{display:block;margin:16px 0 8px}
+.voiceSettings select{width:100%;font-size:16px;padding:12px;border:2px solid #a78bfa;border-radius:12px;background:#fff;color:#24304a}
+.voiceSettings .bigbtn{font-size:18px;margin-top:12px}
+.voiceSettings p{font-size:14px;line-height:1.5}
+#testVoice:disabled{opacity:.55;cursor:wait}

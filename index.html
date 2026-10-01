@@ -6,13 +6,20 @@
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
 <title>Sight Word Monsters</title>
-<link rel="stylesheet" href="style.css?v=4.2">
+<link rel="stylesheet" href="style.css?v=4.3">
 </head>
 <body>
 <main class="wrap">
 <section id="choose" class="screen active">
 <h1>👾 Sight Word Monsters</h1>
 <p class="lead">Choose your funny monster!</p>
+<details class="voiceSettings">
+<summary>🔊 Žodžių balsas</summary>
+<label for="wordVoice">Pasirink anglų kalbos balsą</label>
+<select id="wordVoice"><option value="">Automatinis pasirinkimas</option></select>
+<button id="testVoice" type="button" class="bigbtn">🔊 Paklausyti</button>
+<p id="voiceHint">Pasirink balsą ir palygink tarimą.</p>
+</details>
 <div id="characters" class="grid"></div>
 </section>
 
@@ -48,6 +55,6 @@
 </section>
 </main>
 
-<script src="game.js?v=4.2"></script>
+<script src="game.js?v=4.3"></script>
 </body>
 </html>

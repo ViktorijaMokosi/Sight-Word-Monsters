@@ -111,14 +111,45 @@ function setAnswerLocked(value){
  document.querySelectorAll('#words .word').forEach(btn=>{btn.disabled=value;});
  $('#listen').disabled=value;
 }
-function speakWord(onend=null){
- // Use a natural speaking speed and an unmodified pitch for teaching words.
- speechSynthesis.cancel();
- const u=new SpeechSynthesisUtterance(target);
+const WORD_VOICE_STORAGE='sight-word-monsters-word-voice';
+let preferredWordVoice='';
+try{preferredWordVoice=localStorage.getItem(WORD_VOICE_STORAGE)||'';}catch(e){}
+function voiceKey(v){return JSON.stringify([v.voiceURI,v.name,v.lang]);}
+function englishWordVoices(){
  const voices=speechSynthesis.getVoices().filter(v=>/^en(?:-|_)/i.test(v.lang));
  const quality=v=>/natural|neural|premium|enhanced|google/i.test(v.name)?2:0;
- voices.sort((a,b)=>(quality(b)+(b.lang==='en-GB'?1:0))-(quality(a)+(a.lang==='en-GB'?1:0)));
- u.voice=voices[0]||null; u.lang=u.voice?u.voice.lang:'en-GB';
+ return voices.sort((a,b)=>(quality(b)+(b.lang==='en-GB'?1:0))-(quality(a)+(a.lang==='en-GB'?1:0))||a.name.localeCompare(b.name));
+}
+function selectedWordVoice(){
+ const voices=englishWordVoices();
+ return voices.find(v=>voiceKey(v)===preferredWordVoice)||voices[0]||null;
+}
+function refreshWordVoices(){
+ const select=$('#wordVoice'),voices=englishWordVoices();
+ select.innerHTML='';
+ const automatic=document.createElement('option');automatic.value='';automatic.textContent='Automatinis pasirinkimas';select.appendChild(automatic);
+ voices.forEach(v=>{const option=document.createElement('option');option.value=voiceKey(v);option.textContent=v.name+' ('+v.lang+')';select.appendChild(option);});
+ select.value=voices.some(v=>voiceKey(v)===preferredWordVoice)?preferredWordVoice:'';
+ $('#voiceHint').textContent=voices.length?'Pasirink balsą ir palygink tarimą. Pasirinkimas išsaugomas šiame įrenginyje.':'Anglų balsų sąrašas dar nepasiekiamas. Paklausyk numatytojo balso arba atverk šį žaidimą Safari.';
+}
+$('#wordVoice').onchange=()=>{
+ preferredWordVoice=$('#wordVoice').value;
+ try{localStorage.setItem(WORD_VOICE_STORAGE,preferredWordVoice);}catch(e){}
+};
+$('#testVoice').onclick=()=>{
+ refreshWordVoices();
+ const button=$('#testVoice');button.disabled=true;
+ speakWord(()=>{button.disabled=false;},'The. Said. Have. Were. Could.');
+};
+refreshWordVoices();
+speechSynthesis.addEventListener('voiceschanged',refreshWordVoices);
+window.addEventListener('pageshow',refreshWordVoices);
+$('#wordVoice').onfocus=refreshWordVoices;
+function speakWord(onend=null,text=target){
+ // Use a natural speaking speed and an unmodified pitch for teaching words.
+ speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(text);
+ u.voice=selectedWordVoice();u.lang=u.voice?u.voice.lang:'en-GB';
  u.rate=.9; u.pitch=1; u.volume=1;
  let finished=false;
  const complete=()=>{if(!finished){finished=true;if(onend) onend();}};
