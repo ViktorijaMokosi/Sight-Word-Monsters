@@ -54,3 +54,17 @@ h1{text-align:center;font-size:clamp(30px,6vw,54px);margin:8px 0;color:#6b36c8}
 .voiceSettings .bigbtn{font-size:18px;margin-top:12px}
 .voiceSettings p{font-size:14px;line-height:1.5}
 #testVoice:disabled{opacity:.55;cursor:wait}
+
+/* Animation test: calm while listening, lively between words. */
+#gamePic,#finishPic{transform-origin:50% 85%}
+.monster-idle{animation:monsterIdle 3s ease-in-out infinite}
+.monster-listening{animation:none;transform:none}
+.fx-oops{animation:monsterOops .8s ease-in-out}
+.monster-victory{animation:monsterVictory 1.2s ease-in-out 3}
+@keyframes monsterIdle{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+@keyframes monsterOops{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}60%{transform:rotate(7deg)}80%{transform:rotate(-3deg)}}
+@keyframes monsterVictory{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-18px) rotate(-8deg)}50%{transform:translateY(0) rotate(6deg)}75%{transform:translateY(-12px) rotate(-5deg)}}
+@media(prefers-reduced-motion:reduce){.monster-idle,.monster-victory,.fx-oops,.fx-wiggle,.fx-bounce,.fx-zip,.fx-grumble,.fx-party,.fx-tease{animation:none!important}}
+.testLabel{text-align:center;color:#6b36c8;font-size:14px;font-weight:bold}
+
+.exitButton{border:2px solid #6b36c8;border-radius:14px;background:white;color:#6b36c8;padding:12px 16px;font-weight:bold;min-height:44px;cursor:pointer;margin:8px 0 16px}

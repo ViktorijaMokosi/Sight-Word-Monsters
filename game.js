@@ -4,6 +4,9 @@ const CHARACTERS=[{"id": "pasiepunas", "name": "Pašiepūnas", "pos": "0% 0%", "
 const RECORDED_AUDIO={"pasiepunas": "audio/pasiepunas-recorded-intro.mp3", "skruzdeliukas": "audio/skruzdeliukas-recorded-intro.mp3", "bambunas": "audio/bambunas-recorded-intro.mp3", "burziombynas": "audio/burziombynas-recorded-intro.mp3", "subinickis": "audio/subinickis-recorded-intro.mp3", "pampampickis": "audio/pampampickis-recorded-intro.mp3"};
 
 const CHARACTER_AI_AUDIO={"bambunas":{"good":["audio/bambunas-good-01.mp3","audio/bambunas-good-02.mp3","audio/bambunas-good-03.mp3","audio/bambunas-good-04.mp3","audio/bambunas-good-05.mp3","audio/bambunas-good-06.mp3"],"wrong":["audio/bambunas-wrong-01.mp3","audio/bambunas-wrong-02.mp3","audio/bambunas-wrong-03.mp3"],"intro":"audio/bambunas-intro.mp3"},"pasiepunas":{"good":["audio/pasiepunas-good-01.mp3","audio/pasiepunas-good-02.mp3","audio/pasiepunas-good-03.mp3","audio/pasiepunas-good-04.mp3","audio/pasiepunas-good-05.mp3","audio/pasiepunas-good-06.mp3"],"wrong":["audio/pasiepunas-wrong-01.mp3","audio/pasiepunas-wrong-02.mp3","audio/pasiepunas-wrong-03.mp3"],"intro":"audio/pasiepunas-intro.mp3"},"skruzdeliukas":{"good":["audio/skruzdeliukas-good-01.mp3","audio/skruzdeliukas-good-02.mp3","audio/skruzdeliukas-good-03.mp3","audio/skruzdeliukas-good-04.mp3","audio/skruzdeliukas-good-05.mp3","audio/skruzdeliukas-good-06.mp3"],"wrong":["audio/skruzdeliukas-wrong-01.mp3","audio/skruzdeliukas-wrong-02.mp3","audio/skruzdeliukas-wrong-03.mp3"],"intro":"audio/skruzdeliukas-intro.mp3"},"burziombynas":{"good":["audio/burziombynas-good-01.mp3","audio/burziombynas-good-02.mp3","audio/burziombynas-good-03.mp3","audio/burziombynas-good-04.mp3","audio/burziombynas-good-05.mp3","audio/burziombynas-good-06.mp3"],"wrong":["audio/burziombynas-wrong-01.mp3","audio/burziombynas-wrong-02.mp3","audio/burziombynas-wrong-03.mp3"],"intro":"audio/burziombynas-intro.mp3"},"subinickis":{"good":["audio/subinickis-good-01.mp3","audio/subinickis-good-02.mp3","audio/subinickis-good-03.mp3","audio/subinickis-good-04.mp3","audio/subinickis-good-05.mp3","audio/subinickis-good-06.mp3"],"wrong":["audio/subinickis-wrong-01.mp3","audio/subinickis-wrong-02.mp3","audio/subinickis-wrong-03.mp3"],"intro":"audio/subinickis-intro.mp3"},"pampampickis":{"good":["audio/pampampickis-good-01.mp3","audio/pampampickis-good-02.mp3","audio/pampampickis-good-03.mp3","audio/pampampickis-good-04.mp3","audio/pampampickis-good-05.mp3","audio/pampampickis-good-06.mp3"],"wrong":["audio/pampampickis-wrong-01.mp3","audio/pampampickis-wrong-02.mp3","audio/pampampickis-wrong-03.mp3"],"intro":"audio/pampampickis-intro.mp3"}};
+let sessionGeneration=0,activeCharacterAudio=null;
+const pendingGameTimers=new Set();
+function scheduleGame(fn,delay){const generation=sessionGeneration;const handle=setTimeout(()=>{pendingGameTimers.delete(handle);if(generation===sessionGeneration)fn();},delay);pendingGameTimers.add(handle);return handle;}
 let selected=null, roundWords=[], queue=[], target="", solved=0, rounds=0, locked=false;
 
 const $=s=>document.querySelector(s);
@@ -15,17 +18,21 @@ function speak(text, rate=.82, pitch=1.08, onend=null){
   const voices=speechSynthesis.getVoices();
   u.voice=voices.find(v=>v.lang.startsWith('en-GB')) || voices.find(v=>v.lang.startsWith('en')) || null;
   if(onend){
-    let finished=false;
-    const complete=()=>{if(!finished){finished=true;onend();}};
+    const generation=sessionGeneration;
+  const callbackGeneration=sessionGeneration;
+ let finished=false;
+    const complete=()=>{if(callbackGeneration===sessionGeneration&&!finished){finished=true;onend();}};
     u.onend=complete; u.onerror=complete;
   }
   speechSynthesis.speak(u);
 }
 function playAudioData(src,onend=null){
   speechSynthesis.cancel();
-  const a=new Audio(src);
-  let finished=false;
-  const complete=()=>{if(!finished){finished=true;if(onend) onend();}};
+  const a=new Audio(src);activeCharacterAudio=a;
+  const generation=sessionGeneration;
+  const callbackGeneration=sessionGeneration;
+ let finished=false;
+  const complete=()=>{if(callbackGeneration===sessionGeneration&&!finished){finished=true;if(onend) onend();}};
   a.onended=complete; a.onerror=complete;
   a.play().catch(complete);
 }
@@ -36,10 +43,10 @@ function playRecordedIntro(c, thenEnglish=true, onComplete=null){
     playAudioData(pack.intro, ()=>{ if(onComplete) onComplete(); });
     return;
   }
-  const a=new Audio(RECORDED_AUDIO[c.audioKey]);
+  const a=new Audio(RECORDED_AUDIO[c.audioKey]);activeCharacterAudio=a;
   a.onended=()=>{
     if(thenEnglish){
-      setTimeout(()=>speak(c.english,c.rate,c.pitch,()=>{ if(onComplete) onComplete(); }),180);
+      scheduleGame(()=>speak(c.english,c.rate,c.pitch,()=>{ if(onComplete) onComplete(); }),180);
     } else if(onComplete) onComplete();
   };
   a.play().catch(()=>{
@@ -60,7 +67,22 @@ function monsterEffect(id,good=true){if(!good){tone(180,.12,'triangle',.04,0,110
  else if(id==='subinickis'){tone(230,.12,'sine',.05,0,500);tone(500,.14,'sine',.04,.12,260)}
  else if(id==='pampampickis'){tone(660,.08,'triangle',.035);tone(880,.08,'triangle',.035,.09);tone(1100,.14,'triangle',.04,.18)}
 }
-function animateMonster(id){const el=$('#gamePic'),m={pasiepunas:'fx-tease',skruzdeliukas:'fx-zip',bambunas:'fx-grumble',burziombynas:'fx-bounce',subinickis:'fx-wiggle',pampampickis:'fx-party'},cl=m[id]||'jump';el.className='heroPic miniMonster';void el.offsetWidth;el.classList.add(cl);setTimeout(()=>el.classList.remove(cl),850)}
+let monsterMotion='still';
+function setMonsterMotion(state){
+ monsterMotion=state;
+ const el=$('#gamePic');
+ const reactions=['monster-idle','monster-listening','fx-tease','fx-zip','fx-grumble','fx-bounce','fx-wiggle','fx-party','fx-oops'];
+ reactions.forEach(name=>el.classList.remove(name));
+ if(state==='idle')el.classList.add('monster-idle');
+ if(state==='listening')el.classList.add('monster-listening');
+}
+function animateMonster(id,good=true){
+ setMonsterMotion('reaction');
+ const el=$('#gamePic');
+ const effects={pasiepunas:'fx-tease',skruzdeliukas:'fx-zip',bambunas:'fx-grumble',burziombynas:'fx-bounce',subinickis:'fx-wiggle',pampampickis:'fx-party'};
+ void el.offsetWidth;
+ el.classList.add(good?(effects[id]||'fx-party'):'fx-oops');
+}
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function sample5(){return shuffle([...WORDS]).slice(0,5)}
@@ -84,7 +106,7 @@ function choose(c){
  selected=c; pic($('#introPic'),c); $('#introName').textContent=c.name;
  $('#introText').textContent=c.english;
  show('intro'); setStartReady(false);
- setTimeout(()=>playRecordedIntro(c,true,()=>setStartReady(true)),250);
+ scheduleGame(()=>playRecordedIntro(c,true,()=>setStartReady(true)),250);
 }
 $('#hearIntro').onclick=()=>{
  setStartReady(false);
@@ -110,6 +132,7 @@ function setAnswerLocked(value){
  locked=value;
  document.querySelectorAll('#words .word').forEach(btn=>{btn.disabled=value;});
  $('#listen').disabled=value;
+ if(!value)setMonsterMotion('idle');
 }
 const WORD_VOICE_STORAGE='sight-word-monsters-word-voice';
 let preferredWordVoice='';
@@ -122,15 +145,20 @@ function englishWordVoices(){
 }
 function selectedWordVoice(){
  const voices=englishWordVoices();
- return voices.find(v=>voiceKey(v)===preferredWordVoice)||voices[0]||null;
+ return voices.find(v=>voiceKey(v)===preferredWordVoice)
+  ||voices.find(v=>/libby/i.test(v.name)&&/natural/i.test(v.name))
+  ||voices.find(v=>/libby/i.test(v.name))
+  ||voices.find(v=>/karen/i.test(v.name)&&v.lang.toLowerCase()==='en-au')
+  ||voices.find(v=>/karen/i.test(v.name))
+  ||voices[0]||null;
 }
 function refreshWordVoices(){
  const select=$('#wordVoice'),voices=englishWordVoices();
  select.innerHTML='';
- const automatic=document.createElement('option');automatic.value='';automatic.textContent='Automatinis pasirinkimas';select.appendChild(automatic);
+ const automatic=document.createElement('option');automatic.value='';automatic.textContent='Automatinis: '+(selectedWordVoice()?.name||'numatytasis balsas');select.appendChild(automatic);
  voices.forEach(v=>{const option=document.createElement('option');option.value=voiceKey(v);option.textContent=v.name+' ('+v.lang+')';select.appendChild(option);});
  select.value=voices.some(v=>voiceKey(v)===preferredWordVoice)?preferredWordVoice:'';
- $('#voiceHint').textContent=voices.length?'Pasirink balsą ir palygink tarimą. Pasirinkimas išsaugomas šiame įrenginyje.':'Anglų balsų sąrašas dar nepasiekiamas. Paklausyk numatytojo balso arba atverk šį žaidimą Safari.';
+ $('#voiceHint').textContent=voices.length?'Automatiškai parenkama Libby, jei jos nėra – Karen arba kitas anglų balsas. Tavo pasirinkimas išsaugomas šiame įrenginyje.':'Anglų balsų sąrašas dar nepasiekiamas. Paklausyk numatytojo balso arba atverk šį žaidimą Safari.';
 }
 $('#wordVoice').onchange=()=>{
  preferredWordVoice=$('#wordVoice').value;
@@ -146,49 +174,53 @@ speechSynthesis.addEventListener('voiceschanged',refreshWordVoices);
 window.addEventListener('pageshow',refreshWordVoices);
 $('#wordVoice').onfocus=refreshWordVoices;
 function speakWord(onend=null,text=target){
+ if(target)setMonsterMotion('listening');
  // Use a natural speaking speed and an unmodified pitch for teaching words.
  speechSynthesis.cancel();
  const u=new SpeechSynthesisUtterance(text);
  u.voice=selectedWordVoice();u.lang=u.voice?u.voice.lang:'en-GB';
  u.rate=.9; u.pitch=1; u.volume=1;
+ const callbackGeneration=sessionGeneration;
  let finished=false;
- const complete=()=>{if(!finished){finished=true;if(onend) onend();}};
+ const complete=()=>{if(callbackGeneration===sessionGeneration&&!finished){finished=true;if(onend) onend();}};
  u.onend=complete;u.onerror=complete;
  speechSynthesis.speak(u);
 }
 function repeatTargetThenUnlock(){
- setTimeout(()=>speakWord(()=>setAnswerLocked(false)),220);
+ scheduleGame(()=>speakWord(()=>setAnswerLocked(false)),220);
 }
 function nextTarget(){
  if(queue.length===0){
-   setTimeout(finishGame,700);
+   scheduleGame(finishGame,700);
    return;
  }
- target=queue.shift(); setAnswerLocked(true); $('#status').textContent='';
- setTimeout(()=>speakWord(()=>setAnswerLocked(false)),250);
+ target=queue.shift(); setAnswerLocked(true);setMonsterMotion('listening'); $('#status').textContent='';
+ scheduleGame(()=>speakWord(()=>setAnswerLocked(false)),250);
 }
 
 function finishGame(){
   target="";
   pic($('#finishPic'),selected);
   $('#finishText').textContent='You found all 5 words! Amazing!';
+  setMonsterMotion('still');
+  $('#finishPic').classList.add('monster-victory');
   show('finish');
-  setTimeout(()=>speak('Amazing! You found all five words! Super!',selected.rate,selected.pitch),250);
+  scheduleGame(()=>speak('Amazing! You found all five words! Super!',selected.rate,selected.pitch),250);
 }
 
-$('#playAgain').onclick=()=>{
-  speechSynthesis.cancel();
-  selected=null;
-  roundWords=[];
-  queue=[];
-  target="";
-  solved=0;
-  rounds=0;
-  locked=false;
-  $('#status').textContent='';
-  $('#progress').textContent='';
-  show('choose');
-};
+function exitToMonsters(){
+ sessionGeneration++;
+ pendingGameTimers.forEach(handle=>clearTimeout(handle));pendingGameTimers.clear();
+ if(activeCharacterAudio){activeCharacterAudio.pause();activeCharacterAudio.currentTime=0;activeCharacterAudio=null;}
+ speechSynthesis.cancel();
+ setMonsterMotion('still');$('#finishPic').classList.remove('monster-victory');
+ selected=null;roundWords=[];queue=[];target='';solved=0;rounds=0;locked=false;
+ $('#status').textContent='';$('#progress').textContent='';$('#testVoice').disabled=false;
+ show('choose');
+}
+$('#playAgain').onclick=exitToMonsters;
+$('#exitIntro').onclick=exitToMonsters;
+$('#exitGame').onclick=exitToMonsters;
 function updateProgress(){$('#progress').textContent=`Words: ${solved} / 5`;}
 $('#listen').onclick=()=>{
  if(!target||locked)return;
@@ -204,13 +236,13 @@ function answer(btn,w){
    $('#status').textContent='⭐ '+msg; updateProgress();
    if(CHARACTER_AI_AUDIO[selected.id]){
      const clips=CHARACTER_AI_AUDIO[selected.id].good;
-     playAudioData(clips[Math.floor(Math.random()*clips.length)],()=>setTimeout(nextTarget,220));
+     playAudioData(clips[Math.floor(Math.random()*clips.length)],()=>scheduleGame(nextTarget,220));
    } else {
-     speak(msg,selected.rate,selected.pitch,()=>setTimeout(nextTarget,220));
+     speak(msg,selected.rate,selected.pitch,()=>scheduleGame(nextTarget,220));
    }
  } else {
    setAnswerLocked(true);
-   btn.classList.add('bad'); monsterEffect(selected.id,false);
+   btn.classList.add('bad');animateMonster(selected.id,false); monsterEffect(selected.id,false);
    const msg=selected.oops[Math.floor(Math.random()*selected.oops.length)];
    $('#status').textContent=msg+' 👂';
    if(CHARACTER_AI_AUDIO[selected.id]){
@@ -219,7 +251,7 @@ function answer(btn,w){
    } else {
      speak(msg,selected.rate,selected.pitch,repeatTargetThenUnlock);
    }
-   setTimeout(()=>btn.classList.remove('bad'),450);
+   scheduleGame(()=>btn.classList.remove('bad'),450);
  }
 }
 window.addEventListener('beforeunload',()=>speechSynthesis.cancel());
