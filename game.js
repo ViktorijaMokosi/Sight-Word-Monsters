@@ -14,13 +14,20 @@ function speak(text, rate=.82, pitch=1.08, onend=null){
   const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=rate; u.pitch=pitch;
   const voices=speechSynthesis.getVoices();
   u.voice=voices.find(v=>v.lang.startsWith('en-GB')) || voices.find(v=>v.lang.startsWith('en')) || null;
-  if(onend) u.onend=onend; speechSynthesis.speak(u);
+  if(onend){
+    let finished=false;
+    const complete=()=>{if(!finished){finished=true;onend();}};
+    u.onend=complete; u.onerror=complete;
+  }
+  speechSynthesis.speak(u);
 }
 function playAudioData(src,onend=null){
   speechSynthesis.cancel();
   const a=new Audio(src);
-  if(onend) a.onended=onend;
-  a.play().catch(()=>{ if(onend) onend(); });
+  let finished=false;
+  const complete=()=>{if(!finished){finished=true;if(onend) onend();}};
+  a.onended=complete; a.onerror=complete;
+  a.play().catch(complete);
 }
 function playRecordedIntro(c, thenEnglish=true, onComplete=null){
   speechSynthesis.cancel();
@@ -99,12 +106,35 @@ function renderWords(){
   b.onclick=()=>answer(b,w); box.appendChild(b);
  });
 }
+function setAnswerLocked(value){
+ locked=value;
+ document.querySelectorAll('#words .word').forEach(btn=>{btn.disabled=value;});
+ $('#listen').disabled=value;
+}
+function speakWord(onend=null){
+ // Use a natural speaking speed and an unmodified pitch for teaching words.
+ speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(target);
+ const voices=speechSynthesis.getVoices().filter(v=>/^en(?:-|_)/i.test(v.lang));
+ const quality=v=>/natural|neural|premium|enhanced|google/i.test(v.name)?2:0;
+ voices.sort((a,b)=>(quality(b)+(b.lang==='en-GB'?1:0))-(quality(a)+(a.lang==='en-GB'?1:0)));
+ u.voice=voices[0]||null; u.lang=u.voice?u.voice.lang:'en-GB';
+ u.rate=.9; u.pitch=1; u.volume=1;
+ let finished=false;
+ const complete=()=>{if(!finished){finished=true;if(onend) onend();}};
+ u.onend=complete;u.onerror=complete;
+ speechSynthesis.speak(u);
+}
+function repeatTargetThenUnlock(){
+ setTimeout(()=>speakWord(()=>setAnswerLocked(false)),220);
+}
 function nextTarget(){
  if(queue.length===0){
    setTimeout(finishGame,700);
    return;
  }
- target=queue.shift(); locked=false; $('#status').textContent=''; setTimeout(()=>speak(target,.68,1),250);
+ target=queue.shift(); setAnswerLocked(true); $('#status').textContent='';
+ setTimeout(()=>speakWord(()=>setAnswerLocked(false)),250);
 }
 
 function finishGame(){
@@ -129,12 +159,15 @@ $('#playAgain').onclick=()=>{
   show('choose');
 };
 function updateProgress(){$('#progress').textContent=`Words: ${solved} / 5`;}
-$('#listen').onclick=()=>{if(target) speak(target,.68,1)};
+$('#listen').onclick=()=>{
+ if(!target||locked)return;
+ setAnswerLocked(true);speakWord(()=>setAnswerLocked(false));
+};
 
 function answer(btn,w){
  if(locked)return;
  if(w===target){
-   locked=true; solved++; btn.classList.add('good');
+   setAnswerLocked(true); solved++; btn.classList.add('good');
    animateMonster(selected.id); monsterEffect(selected.id,true);
    const msg=selected.praise[Math.floor(Math.random()*selected.praise.length)];
    $('#status').textContent='⭐ '+msg; updateProgress();
@@ -145,14 +178,15 @@ function answer(btn,w){
      speak(msg,selected.rate,selected.pitch,()=>setTimeout(nextTarget,220));
    }
  } else {
+   setAnswerLocked(true);
    btn.classList.add('bad'); monsterEffect(selected.id,false);
    const msg=selected.oops[Math.floor(Math.random()*selected.oops.length)];
    $('#status').textContent=msg+' 👂';
    if(CHARACTER_AI_AUDIO[selected.id]){
      const clips=CHARACTER_AI_AUDIO[selected.id].wrong;
-     playAudioData(clips[Math.floor(Math.random()*clips.length)]);
+     playAudioData(clips[Math.floor(Math.random()*clips.length)],repeatTargetThenUnlock);
    } else {
-     speak(msg,selected.rate,selected.pitch);
+     speak(msg,selected.rate,selected.pitch,repeatTargetThenUnlock);
    }
    setTimeout(()=>btn.classList.remove('bad'),450);
  }
