@@ -5,6 +5,10 @@ const RECORDED_AUDIO={"pasiepunas": "audio/pasiepunas-recorded-intro.mp3", "skru
 
 const CHARACTER_AI_AUDIO={"bambunas":{"good":["audio/bambunas-good-01.mp3","audio/bambunas-good-02.mp3","audio/bambunas-good-03.mp3","audio/bambunas-good-04.mp3","audio/bambunas-good-05.mp3","audio/bambunas-good-06.mp3"],"wrong":["audio/bambunas-wrong-01.mp3","audio/bambunas-wrong-02.mp3","audio/bambunas-wrong-03.mp3"],"intro":"audio/bambunas-intro.mp3"},"pasiepunas":{"good":["audio/pasiepunas-good-01.mp3","audio/pasiepunas-good-02.mp3","audio/pasiepunas-good-03.mp3","audio/pasiepunas-good-04.mp3","audio/pasiepunas-good-05.mp3","audio/pasiepunas-good-06.mp3"],"wrong":["audio/pasiepunas-wrong-01.mp3","audio/pasiepunas-wrong-02.mp3","audio/pasiepunas-wrong-03.mp3"],"intro":"audio/pasiepunas-intro.mp3"},"skruzdeliukas":{"good":["audio/skruzdeliukas-good-01.mp3","audio/skruzdeliukas-good-02.mp3","audio/skruzdeliukas-good-03.mp3","audio/skruzdeliukas-good-04.mp3","audio/skruzdeliukas-good-05.mp3","audio/skruzdeliukas-good-06.mp3"],"wrong":["audio/skruzdeliukas-wrong-01.mp3","audio/skruzdeliukas-wrong-02.mp3","audio/skruzdeliukas-wrong-03.mp3"],"intro":"audio/skruzdeliukas-intro.mp3"},"burziombynas":{"good":["audio/burziombynas-good-01.mp3","audio/burziombynas-good-02.mp3","audio/burziombynas-good-03.mp3","audio/burziombynas-good-04.mp3","audio/burziombynas-good-05.mp3","audio/burziombynas-good-06.mp3"],"wrong":["audio/burziombynas-wrong-01.mp3","audio/burziombynas-wrong-02.mp3","audio/burziombynas-wrong-03.mp3"],"intro":"audio/burziombynas-intro.mp3"},"subinickis":{"good":["audio/subinickis-good-01.mp3","audio/subinickis-good-02.mp3","audio/subinickis-good-03.mp3","audio/subinickis-good-04.mp3","audio/subinickis-good-05.mp3","audio/subinickis-good-06.mp3"],"wrong":["audio/subinickis-wrong-01.mp3","audio/subinickis-wrong-02.mp3","audio/subinickis-wrong-03.mp3"],"intro":"audio/subinickis-intro.mp3"},"pampampickis":{"good":["audio/pampampickis-good-01.mp3","audio/pampampickis-good-02.mp3","audio/pampampickis-good-03.mp3","audio/pampampickis-good-04.mp3","audio/pampampickis-good-05.mp3","audio/pampampickis-good-06.mp3"],"wrong":["audio/pampampickis-wrong-01.mp3","audio/pampampickis-wrong-02.mp3","audio/pampampickis-wrong-03.mp3"],"intro":"audio/pampampickis-intro.mp3"}};
 let sessionGeneration=0,activeCharacterAudio=null;
+let introToken=0, introBusy=false;
+function stopCharacterAudio(){if(activeCharacterAudio){activeCharacterAudio.onended=null;activeCharacterAudio.onerror=null;activeCharacterAudio.pause();activeCharacterAudio.currentTime=0;activeCharacterAudio=null;}}
+function invalidateIntro(){introToken++;introBusy=false;}
+function setIntroBusy(busy){introBusy=busy;$('#hearIntro').disabled=busy;setStartReady(!busy);}
 const pendingGameTimers=new Set();
 function scheduleGame(fn,delay){const generation=sessionGeneration;const handle=setTimeout(()=>{pendingGameTimers.delete(handle);if(generation===sessionGeneration)fn();},delay);pendingGameTimers.add(handle);return handle;}
 let selected=null, roundWords=[], queue=[], target="", solved=0, rounds=0, locked=false;
@@ -28,11 +32,12 @@ function speak(text, rate=.82, pitch=1.08, onend=null){
 }
 function playAudioData(src,onend=null){
   speechSynthesis.cancel();
+  stopCharacterAudio();
   const a=new Audio(src);activeCharacterAudio=a;
   const generation=sessionGeneration;
   const callbackGeneration=sessionGeneration;
  let finished=false;
-  const complete=()=>{if(callbackGeneration===sessionGeneration&&!finished){finished=true;if(onend) onend();}};
+  const complete=()=>{if(callbackGeneration===sessionGeneration&&!finished){finished=true;if(activeCharacterAudio===a)activeCharacterAudio=null;if(onend) onend();}};
   a.onended=complete; a.onerror=complete;
   a.play().catch(complete);
 }
@@ -103,17 +108,20 @@ function setStartReady(ready){
  btn.style.cursor=ready?'pointer':'not-allowed';
 }
 function choose(c){
+ invalidateIntro();stopCharacterAudio();speechSynthesis.cancel();
  selected=c; pic($('#introPic'),c); $('#introName').textContent=c.name;
  $('#introText').textContent=c.english;
- show('intro'); setStartReady(false);
- scheduleGame(()=>playRecordedIntro(c,true,()=>setStartReady(true)),250);
+ show('intro'); setIntroBusy(true);
+ const token=introToken;
+ scheduleGame(()=>{if(token!==introToken||!selected)return;playRecordedIntro(c,true,()=>{if(token===introToken&&selected===c)setIntroBusy(false);});},250);
 }
 $('#hearIntro').onclick=()=>{
- setStartReady(false);
- playRecordedIntro(selected,true,()=>setStartReady(true));
+ if(introBusy||!selected)return;
+ setIntroBusy(true);const token=++introToken;
+ playRecordedIntro(selected,true,()=>{if(token===introToken)setIntroBusy(false);});
 };
 $('#startGame').onclick=()=>{
- if($('#startGame').disabled) return;
+ if($('#startGame').disabled||introBusy) return;
  speechSynthesis.cancel();pic($('#gamePic'),selected);show('game');newRound();
 };
 
@@ -209,9 +217,10 @@ function finishGame(){
 }
 
 function exitToMonsters(){
+ invalidateIntro();
  sessionGeneration++;
  pendingGameTimers.forEach(handle=>clearTimeout(handle));pendingGameTimers.clear();
- if(activeCharacterAudio){activeCharacterAudio.pause();activeCharacterAudio.currentTime=0;activeCharacterAudio=null;}
+ stopCharacterAudio();
  speechSynthesis.cancel();
  setMonsterMotion('still');$('#finishPic').classList.remove('monster-victory');
  selected=null;roundWords=[];queue=[];target='';solved=0;rounds=0;locked=false;
@@ -254,4 +263,4 @@ function answer(btn,w){
    scheduleGame(()=>btn.classList.remove('bad'),450);
  }
 }
-window.addEventListener('beforeunload',()=>speechSynthesis.cancel());
+window.addEventListener('beforeunload',()=>{invalidateIntro();pendingGameTimers.forEach(clearTimeout);stopCharacterAudio();speechSynthesis.cancel();});
